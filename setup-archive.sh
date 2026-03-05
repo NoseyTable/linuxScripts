@@ -33,6 +33,35 @@ die() {
 
 [[ $(id -u) -eq 0 ]] || die "This script must be run as root."
 
+# ---- Step 0: Install required packages -------------------------------------
+
+log "Step 0: Installing required packages"
+PACKAGES=(
+    parted
+    xfsprogs
+    samba
+    samba-common
+    samba-client
+    policycoreutils-python-utils
+)
+
+INSTALL_NEEDED=()
+for pkg in "${PACKAGES[@]}"; do
+    if ! rpm -q "$pkg" &>/dev/null; then
+        INSTALL_NEEDED+=("$pkg")
+    fi
+done
+
+if [[ ${#INSTALL_NEEDED[@]} -gt 0 ]]; then
+    log "Installing: ${INSTALL_NEEDED[*]}"
+    dnf install -y "${INSTALL_NEEDED[@]}"
+    log "Packages installed"
+else
+    log "All required packages already installed, skipping"
+fi
+
+# ---- Pre-flight checks -----------------------------------------------------
+
 if [[ ! -b "$DISK" ]]; then
     die "$DISK does not exist. Verify disk layout before proceeding."
 fi
@@ -143,15 +172,9 @@ chown -R "${SAMBA_USER}:${SAMBA_USER}" "$SHARE_PATH"
 chmod -R 0775 "$SHARE_PATH"
 log "Ownership set to ${SAMBA_USER}:${SAMBA_USER}, permissions set to 0775"
 
-# ---- Step 9: Install and configure Samba ------------------------------------
+# ---- Step 9: Configure Samba ------------------------------------------------
 
-log "Step 9: Installing and configuring Samba"
-if ! rpm -q samba &>/dev/null; then
-    dnf install -y samba samba-common samba-client
-    log "Samba packages installed"
-else
-    log "Samba already installed, skipping"
-fi
+log "Step 9: Configuring Samba"
 
 # Back up existing smb.conf if it exists and is not ours
 if [[ -f "$SMB_CONF" ]] && ! grep -q "# MANAGED BY setup-archive.sh" "$SMB_CONF"; then
