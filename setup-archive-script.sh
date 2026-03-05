@@ -215,10 +215,11 @@ for folder in "$SOURCE_PATH"/????-??-??; do
         continue
     fi
 
-    # Move the folder
+    # Move the folder and fix ownership for Samba access
     log "MOVING: $FOLDER_NAME"
     if mv "$folder" "$DEST_PATH/"; then
-        log "OK: $FOLDER_NAME moved successfully"
+        chown -R recordings:recordings "$DEST_PATH/$FOLDER_NAME"
+        log "OK: $FOLDER_NAME moved and ownership set"
         MOVED=$((MOVED + 1))
     else
         log "ERROR: Failed to move $FOLDER_NAME"
