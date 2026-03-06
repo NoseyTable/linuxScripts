@@ -53,6 +53,36 @@ MAJOR_VER=$(rpm -E %{rhel} 2>/dev/null || echo "0")
 log "=== OpenGate prerequisite script starting ==="
 log "Host: $(hostname) | OS: $(cat /etc/redhat-release) | Kernel: $(uname -r)"
 
+# ── Confirmation ─────────────────────────────────────────────────────────────
+echo ""
+echo "======================================================================"
+echo "  OpenGate Prerequisites    What this script will do:"
+echo "======================================================================"
+echo ""
+echo "  1. Set timezone to ${TIMEZONE}"
+echo "  2. Remove conflicting packages (podman, buildah, distro docker)"
+echo "  3. Add the official Docker CE repo (download.docker.com)"
+echo "  4. Install: docker-ce, docker-ce-cli, containerd.io,"
+echo "              docker-buildx-plugin, docker-compose-plugin"
+echo "  5. Write ${DAEMON_JSON} with:"
+echo "       Bridge gateway : ${DOCKER_BRIDGE_BIP}"
+echo "       Network pool   : ${DOCKER_POOL_BASE} carved into /${DOCKER_POOL_SIZE} subnets"
+echo "       Log rotation   : 20MB x 5 files"
+echo "       Storage driver : overlay2"
+echo "       Live restore   : enabled"
+echo "  6. Enable and start Docker + containerd services"
+echo ""
+echo "  Log file: ${LOGFILE}"
+echo ""
+echo "======================================================================"
+echo ""
+read -rp "Proceed? [y/N]: " CONFIRM
+if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
+    log "User declined. Exiting."
+    exit 0
+fi
+echo ""
+
 # ── Step 1: Timezone ─────────────────────────────────────────────────────────
 log "Setting timezone to ${TIMEZONE} ..."
 timedatectl set-timezone "${TIMEZONE}"
