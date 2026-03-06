@@ -182,6 +182,14 @@ fi
 # ── Step 8: Connectivity tests ───────────────────────────────────────────────
 log "Testing connectivity to Enghouse services ..."
 
+# Detect this host's primary IP (the one with a default route)
+HOST_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '/src/{print $NF; exit}')
+if [[ -z "${HOST_IP}" ]]; then
+    HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+fi
+HOST_IP="${HOST_IP:-UNKNOWN}"
+SSH_USER=$(logname 2>/dev/null || whoami)
+
 # Test FTP (port 21)
 FTP_STATUS="FAILED"
 if curl -s --max-time 10 --connect-timeout 5 "ftps://${ENGHOUSE_FTP}/" -u "OpenGate_Update:Op3nG3t3" --list-only >/dev/null 2>&1; then
@@ -219,26 +227,58 @@ echo ""
 
 if [[ "${FTP_STATUS}" == "OK" ]]; then
     echo "  FTP  (${ENGHOUSE_FTP}):       REACHABLE"
-    echo "       You can use Method A (direct download) for the install script."
+    echo ""
+    echo "  You can use Method A (direct download). Run on this host:"
+    echo ""
+    echo "    bash -c \"\$(curl -s ftps://OpenGate_Update:Op3nG3t3@${ENGHOUSE_FTP}/install.sh)\" MODE"
+    echo ""
+    echo "  Replace MODE with: master | masterwebrtc | node | nodewebrtc | webrtc | turn"
+    echo "  Optional flags: -norecording  -asterisk22"
+    echo ""
 elif [[ "${FTP_STATUS}" == "PORT_OPEN_AUTH_FAILED" ]]; then
     echo "  FTP  (${ENGHOUSE_FTP}):       PORT OPEN, AUTH TEST INCONCLUSIVE"
-    echo "       FTP port 21 is reachable. Try Method A first."
+    echo "  FTP port 21 is reachable. Try Method A first."
+    echo ""
 else
     echo "  FTP  (${ENGHOUSE_FTP}):       BLOCKED"
-    echo "       FTP is not reachable from this host."
-    echo "       You must use Method B (download on local machine, SCP to target)."
+    echo ""
+    echo "  FTP is not reachable from this host. Use Method B instead."
+    echo "  Run the following on your local workstation to download and transfer"
+    echo "  the install script to this server."
+    echo ""
+    echo "  Step 1: Download the script (run on your local machine)"
+    echo ""
+    echo "    Windows (cmd or PowerShell):"
+    echo "      curl.exe -s \"ftps://OpenGate_Update:Op3nG3t3@${ENGHOUSE_FTP}/install.sh\" -o install.sh"
+    echo ""
+    echo "    macOS (Terminal):"
+    echo "      curl -s \"ftps://OpenGate_Update:Op3nG3t3@${ENGHOUSE_FTP}/install.sh\" -o install.sh"
+    echo ""
+    echo "    Fallback: Use FileZilla/WinSCP to ${ENGHOUSE_FTP}"
+    echo "              Username: OpenGate_Update   Password: Op3nG3t3"
+    echo ""
+    echo "  Step 2: Transfer to this server (run on your local machine)"
+    echo ""
+    echo "      scp install.sh ${SSH_USER}@${HOST_IP}:~/install.sh"
+    echo ""
+    echo "  Step 3: Run on this server"
+    echo ""
+    echo "      chmod +x ~/install.sh"
+    echo "      sudo ~/install.sh MODE"
+    echo ""
+    echo "  Replace MODE with: master | masterwebrtc | node | nodewebrtc | webrtc | turn"
+    echo "  Optional flags: -norecording  -asterisk22"
+    echo ""
 fi
-
-echo ""
 
 if [[ "${REGISTRY_STATUS}" == "OK" || "${REGISTRY_STATUS}" == "PORT_OPEN" ]]; then
     echo "  Registry (${ENGHOUSE_REGISTRY}):       REACHABLE"
-    echo "       Docker image pulls will work from this host."
+    echo "  Docker image pulls will work from this host."
 else
     echo "  Registry (${ENGHOUSE_REGISTRY}):       BLOCKED"
-    echo "       HTTPS to the container registry is blocked."
-    echo "       Docker image pulls will fail. You need outbound access"
-    echo "       to ${ENGHOUSE_REGISTRY} on port 443."
+    echo "  HTTPS to the container registry is blocked."
+    echo "  Docker image pulls will fail. You need outbound access"
+    echo "  to ${ENGHOUSE_REGISTRY} on port 443 before proceeding."
 fi
 
 echo ""
@@ -246,5 +286,6 @@ echo "======================================================================"
 echo ""
 log "FTP connectivity:      ${FTP_STATUS}"
 log "Registry connectivity: ${REGISTRY_STATUS}"
+log "Host IP:               ${HOST_IP}"
 log ""
 log "Next step: Run the OpenGate install script for your chosen mode (master, node, etc.)"
