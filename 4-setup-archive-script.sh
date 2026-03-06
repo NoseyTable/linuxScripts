@@ -25,6 +25,36 @@ die() {
 
 [[ $(id -u) -eq 0 ]] || die "This script must be run as root."
 
+# ---- Explanation and confirmation -------------------------------------------
+
+echo ""
+echo "======================================================================"
+echo "  Setup Recording Sync        What this script will do:"
+echo "======================================================================"
+echo ""
+echo "  1. Prompt for tenant number (e.g. t1, t2)"
+echo "  2. Verify the source mount exists at /mnt/<tenant>-recordings"
+echo "  3. Discover available local archive volumes for the tenant"
+echo "  4. Let you choose which archive to sync into"
+echo "  5. Ask for a daily schedule time (24h format)"
+echo "  6. Create a sync script at /usr/local/bin/sync-recordings-<tenant>.sh"
+echo "       Moves YYYY-MM-DD folders older than 7 days from source to archive"
+echo "       Sets ownership to 'recordings' after each move"
+echo "  7. Add (or update) a crontab entry for the chosen schedule"
+echo ""
+echo "  Prerequisites : mount-smb-source.sh and setup-archive.sh (or"
+echo "                  add-archive.sh) must have been run first"
+echo "  Log file      : ${LOGFILE}"
+echo ""
+echo "======================================================================"
+echo ""
+read -rp "Proceed? [y/N]: " CONFIRM
+if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
+    log "User declined. Exiting."
+    exit 0
+fi
+echo ""
+
 # ---- Step 1: Select tenant --------------------------------------------------
 
 echo ""

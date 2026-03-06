@@ -27,6 +27,37 @@ die() {
 
 [[ $(id -u) -eq 0 ]] || die "This script must be run as root."
 
+# ---- Explanation and confirmation -------------------------------------------
+
+echo ""
+echo "======================================================================"
+echo "  Mount SMB Source             What this script will do:"
+echo "======================================================================"
+echo ""
+echo "  1. Install required packages if missing:"
+echo "       cifs-utils, samba-client"
+echo "  2. Prompt for tenant number (determines mount at /mnt/<tenant>-recordings)"
+echo "  3. Gather remote server connection details (IP, share, credentials)"
+echo "  4. Test connectivity to the remote SMB share (up to ${MAX_ATTEMPTS} attempts)"
+echo "  5. Create a credentials file at /root/.smb-<tenant>-recordings"
+echo "       Permissions locked to 0600 (root only)"
+echo "  6. Add a CIFS mount entry to /etc/fstab with:"
+echo "       SMB version    : 3.0"
+echo "       Mount options  : noperm, _netdev (waits for network at boot)"
+echo "       UID/GID        : ${SAMBA_USER}"
+echo "  7. Mount the remote share"
+echo ""
+echo "  Log file : ${LOGFILE}"
+echo ""
+echo "======================================================================"
+echo ""
+read -rp "Proceed? [y/N]: " CONFIRM
+if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
+    log "User declined. Exiting."
+    exit 0
+fi
+echo ""
+
 # ---- Step 0: Ensure required packages are installed -------------------------
 
 log "Step 0: Checking required packages"

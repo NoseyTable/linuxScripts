@@ -33,6 +33,56 @@ die() {
 
 [[ $(id -u) -eq 0 ]] || die "This script must be run as root."
 
+if [[ ! -b "$DISK" ]]; then
+    die "$DISK does not exist. Verify disk layout before proceeding."
+fi
+
+# Confirm the disk has no partitions (safety check)
+EXISTING_PARTS=$(lsblk -rn -o NAME "$DISK" | grep -v "^$(basename "$DISK")$" || true)
+if [[ -n "$EXISTING_PARTS" ]]; then
+    die "$DISK already has partitions: $EXISTING_PARTS. Aborting to prevent data loss."
+fi
+
+# ---- Explanation and confirmation -------------------------------------------
+
+DISK_SIZE=$(lsblk -rn -o SIZE "$DISK" | head -1)
+
+echo ""
+echo "======================================================================"
+echo "  Archive Server Setup        What this script will do:"
+echo "======================================================================"
+echo ""
+echo "  1. Install required packages if missing:"
+echo "       parted, xfsprogs, samba, samba-common, samba-client,"
+echo "       policycoreutils-python-utils"
+echo "  2. Partition ${DISK} (${DISK_SIZE}) with a single GPT partition"
+echo "  3. Format ${PART} as XFS"
+echo "  4. Mount by UUID at ${MOUNT_POINT} (added to /etc/fstab)"
+echo "  5. Create directory structure:"
+echo "       ${REC_PATH}"
+echo "  6. Create system user '${SAMBA_USER}' (no shell, no home)"
+echo "  7. Set Samba password for '${SAMBA_USER}' (you will be prompted)"
+echo "  8. Set ownership and permissions (0775) on ${SHARE_PATH}"
+echo "  9. Write ${SMB_CONF} with share [${SAMBA_SHARE}]"
+echo "       Path           : ${SHARE_PATH}"
+echo "       Valid users     : ${SAMBA_USER}"
+echo "       Browseable      : yes"
+echo " 10. Configure SELinux contexts for Samba (if enforcing)"
+echo " 11. Open firewall for Samba service (if firewalld active)"
+echo " 12. Enable and start smb + nmb services"
+echo ""
+echo "  Target disk : ${DISK} (${DISK_SIZE})"
+echo "  Log file    : ${LOGFILE}"
+echo ""
+echo "======================================================================"
+echo ""
+read -rp "Proceed? [y/N]: " CONFIRM
+if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
+    log "User declined. Exiting."
+    exit 0
+fi
+echo ""
+
 # ---- Step 0: Install required packages -------------------------------------
 
 log "Step 0: Installing required packages"
@@ -58,18 +108,6 @@ if [[ ${#INSTALL_NEEDED[@]} -gt 0 ]]; then
     log "Packages installed"
 else
     log "All required packages already installed, skipping"
-fi
-
-# ---- Pre-flight checks -----------------------------------------------------
-
-if [[ ! -b "$DISK" ]]; then
-    die "$DISK does not exist. Verify disk layout before proceeding."
-fi
-
-# Confirm the disk has no partitions (safety check)
-EXISTING_PARTS=$(lsblk -rn -o NAME "$DISK" | grep -v "^$(basename "$DISK")$" || true)
-if [[ -n "$EXISTING_PARTS" ]]; then
-    die "$DISK already has partitions: $EXISTING_PARTS. Aborting to prevent data loss."
 fi
 
 # ---- Prompt for Samba password ----------------------------------------------
@@ -299,7 +337,7 @@ if [[ "$VERIFY_PASS" == true ]]; then
     echo " Archive server setup complete"
     echo "============================================="
     echo " Mount point : $MOUNT_POINT"
-    echo " Share name  : \\\\$(hostname)\\${SAMBA_SHARE}"
+    echo " Share name  : \\$(hostname)\\${SAMBA_SHARE}"
     echo " Share path  : $SHARE_PATH"
     echo " Samba user  : $SAMBA_USER"
     echo " Log file    : $LOGFILE"

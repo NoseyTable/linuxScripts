@@ -39,6 +39,38 @@ if ! pdbedit -L 2>/dev/null | grep -q "^${SAMBA_USER}:"; then
     die "User '$SAMBA_USER' is not in the Samba database. Run setup-archive.sh first."
 fi
 
+# ---- Explanation and confirmation -------------------------------------------
+
+echo ""
+echo "======================================================================"
+echo "  Add Archive Disk            What this script will do:"
+echo "======================================================================"
+echo ""
+echo "  1. Discover empty disks (excluding /dev/sda) and let you choose one"
+echo "  2. Prompt for tenant number to determine naming (e.g. t1, t2)"
+echo "  3. Auto detect the next archive number (e.g. t1-archive02)"
+echo "  4. Partition the selected disk with a single GPT partition"
+echo "  5. Format the partition as XFS"
+echo "  6. Mount by UUID at /mnt/<tenant>-archive<NN> (added to /etc/fstab)"
+echo "  7. Create directory structure: recordings/rec"
+echo "  8. Set ownership to '${SAMBA_USER}' with 0775 permissions"
+echo "  9. Apply SELinux contexts for Samba (if enforcing)"
+echo " 10. Append a new [share] block to ${SMB_CONF}"
+echo " 11. Restart smb + nmb services"
+echo ""
+echo "  Prerequisites : setup-archive.sh must have been run first"
+echo "  Samba user    : ${SAMBA_USER} (already exists)"
+echo "  Log file      : ${LOGFILE}"
+echo ""
+echo "======================================================================"
+echo ""
+read -rp "Proceed? [y/N]: " CONFIRM
+if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
+    log "User declined. Exiting."
+    exit 0
+fi
+echo ""
+
 # ---- Step 1: Discover empty disks -------------------------------------------
 
 log "Step 1: Discovering empty disks"
@@ -269,7 +301,7 @@ if [[ "$VERIFY_PASS" == true ]]; then
     echo "============================================="
     echo " Disk        : $DISK ($DISK_SIZE)"
     echo " Mount point : $MOUNT_POINT"
-    echo " Share name  : \\\\$(hostname)\\${ARCHIVE_NAME}"
+    echo " Share name  : \\$(hostname)\\${ARCHIVE_NAME}"
     echo " Share path  : $SHARE_PATH"
     echo " Samba user  : $SAMBA_USER"
     echo " Log file    : $LOGFILE"
