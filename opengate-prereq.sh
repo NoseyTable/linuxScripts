@@ -23,8 +23,8 @@ set -euo pipefail
 # ── Variables ────────────────────────────────────────────────────────────────
 LOGFILE="/var/log/opengate-prereq.log"
 TIMEZONE="Africa/Johannesburg"
-DOCKER_BRIDGE_SUBNET="169.254.64.0/26"     # default bridge0 network
-DOCKER_POOL_BASE="169.254.65.0/26"         # first compose/user network
+DOCKER_BRIDGE_BIP="169.254.64.1/26"         # gateway IP for default bridge
+DOCKER_POOL_BASE="169.254.64.0/18"         # large block Docker carves /26s from
 DOCKER_POOL_SIZE=26                         # each compose network gets a /26
 DAEMON_JSON="/etc/docker/daemon.json"
 
@@ -100,7 +100,7 @@ mkdir -p /etc/docker
 
 cat > "${DAEMON_JSON}" <<DAEMONJSON
 {
-  "bip": "${DOCKER_BRIDGE_SUBNET}",
+  "bip": "${DOCKER_BRIDGE_BIP}",
   "default-address-pools": [
     {
       "base": "${DOCKER_POOL_BASE}",
@@ -136,10 +136,10 @@ log "Verifying Docker bridge network ..."
 sleep 2
 BRIDGE_SUBNET=$(docker network inspect bridge --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || echo "NOT_READY")
 
-if [[ "${BRIDGE_SUBNET}" == "${DOCKER_BRIDGE_SUBNET}" ]]; then
+if [[ "${BRIDGE_SUBNET}" == "169.254.64.0/26" ]]; then
     log "Bridge subnet confirmed: ${BRIDGE_SUBNET}"
 else
-    log "WARNING: Bridge subnet is '${BRIDGE_SUBNET}', expected '${DOCKER_BRIDGE_SUBNET}'."
+    log "WARNING: Bridge subnet is '${BRIDGE_SUBNET}', expected '169.254.64.0/26'."
     log "Docker may need a restart. Attempting restart ..."
     systemctl restart docker
     sleep 2
