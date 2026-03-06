@@ -27,6 +27,8 @@ DOCKER_BRIDGE_BIP="169.254.64.1/26"         # gateway IP for default bridge
 DOCKER_POOL_BASE="169.254.64.0/18"         # large block Docker carves /26s from
 DOCKER_POOL_SIZE=26                         # each compose network gets a /26
 DAEMON_JSON="/etc/docker/daemon.json"
+ENGHOUSE_FTP="ftp.emea.enghouseinteractive.com"
+ENGHOUSE_REGISTRY="opengate.azurecr.io"
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 exec > >(tee -a "${LOGFILE}") 2>&1
@@ -177,6 +179,29 @@ else
     log "After restart, bridge subnet: ${BRIDGE_SUBNET}"
 fi
 
+# ── Step 8: Connectivity tests ───────────────────────────────────────────────
+log "Testing connectivity to Enghouse services ..."
+
+# Test FTP (port 21)
+FTP_STATUS="FAILED"
+if curl -s --max-time 10 --connect-timeout 5 "ftps://${ENGHOUSE_FTP}/" -u "OpenGate_Update:Op3nG3t3" --list-only >/dev/null 2>&1; then
+    FTP_STATUS="OK"
+elif timeout 5 bash -c "echo >/dev/tcp/${ENGHOUSE_FTP}/21" 2>/dev/null; then
+    FTP_STATUS="PORT_OPEN_AUTH_FAILED"
+else
+    FTP_STATUS="BLOCKED"
+fi
+
+# Test container registry (port 443)
+REGISTRY_STATUS="FAILED"
+if curl -s --max-time 10 --connect-timeout 5 "https://${ENGHOUSE_REGISTRY}/v2/" >/dev/null 2>&1; then
+    REGISTRY_STATUS="OK"
+elif timeout 5 bash -c "echo >/dev/tcp/${ENGHOUSE_REGISTRY}/443" 2>/dev/null; then
+    REGISTRY_STATUS="PORT_OPEN"
+else
+    REGISTRY_STATUS="BLOCKED"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 log "=== OpenGate prerequisite script completed ==="
 log "Timezone:        $(timedatectl show --property=Timezone --value)"
@@ -185,5 +210,41 @@ log "Compose version: $(docker compose version)"
 log "Bridge subnet:   ${BRIDGE_SUBNET}"
 log "Pool base:       ${DOCKER_POOL_BASE} (each network: /${DOCKER_POOL_SIZE})"
 log "Log file:        ${LOGFILE}"
+log ""
+echo ""
+echo "======================================================================"
+echo "  Connectivity Test Results"
+echo "======================================================================"
+echo ""
+
+if [[ "${FTP_STATUS}" == "OK" ]]; then
+    echo "  FTP  (${ENGHOUSE_FTP}):       REACHABLE"
+    echo "       You can use Method A (direct download) for the install script."
+elif [[ "${FTP_STATUS}" == "PORT_OPEN_AUTH_FAILED" ]]; then
+    echo "  FTP  (${ENGHOUSE_FTP}):       PORT OPEN, AUTH TEST INCONCLUSIVE"
+    echo "       FTP port 21 is reachable. Try Method A first."
+else
+    echo "  FTP  (${ENGHOUSE_FTP}):       BLOCKED"
+    echo "       FTP is not reachable from this host."
+    echo "       You must use Method B (download on local machine, SCP to target)."
+fi
+
+echo ""
+
+if [[ "${REGISTRY_STATUS}" == "OK" || "${REGISTRY_STATUS}" == "PORT_OPEN" ]]; then
+    echo "  Registry (${ENGHOUSE_REGISTRY}):       REACHABLE"
+    echo "       Docker image pulls will work from this host."
+else
+    echo "  Registry (${ENGHOUSE_REGISTRY}):       BLOCKED"
+    echo "       HTTPS to the container registry is blocked."
+    echo "       Docker image pulls will fail. You need outbound access"
+    echo "       to ${ENGHOUSE_REGISTRY} on port 443."
+fi
+
+echo ""
+echo "======================================================================"
+echo ""
+log "FTP connectivity:      ${FTP_STATUS}"
+log "Registry connectivity: ${REGISTRY_STATUS}"
 log ""
 log "Next step: Run the OpenGate install script for your chosen mode (master, node, etc.)"
